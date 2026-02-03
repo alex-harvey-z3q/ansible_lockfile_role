@@ -1,0 +1,6 @@
+---
+lock_path: "/tmp/ansible.lock"
+lock_ttl_seconds: 600
+lock_retries: 30
+lock_delay: 5
+lock_fail_fast: false

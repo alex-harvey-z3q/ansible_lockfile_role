@@ -1,0 +1,21 @@
+- hosts: all
+  gather_facts: true
+  become: true
+
+  tasks:
+    - include_role:
+        name: ansible_lockfile_role
+      vars:
+        lock_path: /tmp/test.lock
+
+    - command: cat /tmp/test.lock
+      register: lock
+
+    - debug:
+        var: lock.stdout_lines
+
+    - include_role:
+        name: ansible_lockfile_role
+        tasks_from: release.yml
+      vars:
+        lock_path: /tmp/test.lock

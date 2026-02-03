@@ -1,0 +1,42 @@
+---
+- name: Linux only guard
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['system'] == 'Linux'
+    fail_msg: "This lock role currently supports Linux only."
+
+- name: Ensure lock directory exists
+  ansible.builtin.file:
+    path: "{{ lock_path | dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: Acquire lock (timestamp file with TTL)
+  ansible.builtin.command:
+    argv:
+      - /bin/bash
+      - -lc
+      - >
+        set -euo pipefail;
+        lock='{{ lock_path }}';
+        ttl='{{ lock_ttl_seconds | int }}';
+        now="$(date +%s)";
+        if [ -f "$lock" ]; then
+          ts="$(head -n1 "$lock" 2>/dev/null || echo 0)";
+          ts="${ts:-0}";
+          case "$ts" in (''|*[!0-9]*) ts=0 ;; esac;
+          age=$(( now - ts ));
+          if [ "$age" -gt "$ttl" ]; then rm -f "$lock"; else exit 2; fi;
+        fi;
+        ( set -o noclobber; printf '%s\n%s\n' "$now" "{{ inventory_hostname }}" > "$lock" ) 2>/dev/null
+  register: lock_try
+  changed_when: lock_try.rc == 0
+  failed_when: false
+  until: lock_try.rc == 0
+  retries: "{{ 1 if lock_fail_fast else lock_retries }}"
+  delay: "{{ 0 if lock_fail_fast else lock_delay }}"
+
+- name: Fail if lock could not be acquired
+  ansible.builtin.fail:
+    msg: "Failed to acquire lock: {{ lock_path }}"
+  when: lock_try.rc != 0

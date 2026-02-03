@@ -1,0 +1,4 @@
+---
+- file:
+    path: "{{ lock_path }}"
+    state: absent
