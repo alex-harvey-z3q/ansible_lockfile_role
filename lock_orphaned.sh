@@ -6,30 +6,21 @@ eval "$(sed -n 's/^ec2[[:space:]]*//p' inventory.ini)"  # Split the ec2 line in 
                                                         # Sets $ansible_ssh_private_key_file, $ansible_user and $ansible_host.
 
 lock_path="/tmp/test.lock"
-owner="shell-script"
+owner="orphan-script"
 
-hold_seconds="${1:-}"
-
-if [[ -z "$hold_seconds" ]]; then
-  echo "Usage: $0 HOLD_SECONDS"
-  exit 1
-fi
+# Default: 11 minutes old (TTL is 10 minutes = 600s), so it's clearly orphaned.
+orphan_age_seconds="${1:-660}"
 
 ssh -i "$ansible_ssh_private_key_file" -o StrictHostKeyChecking=no "$ansible_user"@"$ansible_host" sudo bash -s -- \
-  "$lock_path" "$owner" "$hold_seconds" <<'EOF'
+  "$lock_path" "$owner" "$orphan_age_seconds" <<'EOF'
 set -euo pipefail
 
 lock_path="$1"
 owner="$2"
-hold_seconds="$3"
+orphan_age_seconds="$3"
 
-now="$(date +%s)"
-printf '%s\n%s\n' "$now" "$owner" > "$lock_path"
+ts=$(( $(date +%s) - orphan_age_seconds ))
+printf '%s\n%s\n' "$ts" "$owner" > "$lock_path"
 
-echo "Created lock: $lock_path (ts=$now owner=$owner)"
-echo "Holding for ${hold_seconds}s..."
-sleep "$hold_seconds"
-
-rm -f "$lock_path"
-echo "Released lock: $lock_path"
+echo "Created ORPHAN lock: $lock_path (ts=$ts age=${orphan_age_seconds}s owner=$owner)"
 EOF

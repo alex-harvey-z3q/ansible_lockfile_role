@@ -1,21 +1,28 @@
+---
 - hosts: all
   gather_facts: true
   become: true
 
   tasks:
-    - include_role:
-        name: ansible_lockfile_role
-      vars:
-        lock_path: /tmp/test.lock
+    - block:
+        - name: Acquire lock
+          include_role:
+            name: ansible_lockfile_role
+          vars:
+            lock_path: /tmp/test.lock  # This defaults to /tmp/ansible.lock
 
-    - command: cat /tmp/test.lock
-      register: lock
+        - name: Do some work
+          ansible.builtin.command: echo "hello world from $(hostname)"
+          register: hello
+          changed_when: false
 
-    - debug:
-        var: lock.stdout_lines
+        - ansible.builtin.debug:
+            var: hello.stdout
 
-    - include_role:
-        name: ansible_lockfile_role
-        tasks_from: release.yml
-      vars:
-        lock_path: /tmp/test.lock
+      always:
+        - name: Release lock
+          include_role:
+            name: ansible_lockfile_role
+            tasks_from: release.yml
+          vars:
+            lock_path: /tmp/test.lock
