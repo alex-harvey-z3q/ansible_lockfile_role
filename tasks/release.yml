@@ -1,5 +1,5 @@
 ---
 - name: Release lock
-  file:
+  ansible.builtin.file:
     path: "{{ lock_path }}"
     state: absent
