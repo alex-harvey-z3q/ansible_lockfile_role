@@ -1,0 +1,49 @@
+---
+dependency:
+  name: galaxy
+  options:
+    role-file: requirements.yml
+    requirements-file: requirements.yml
+
+driver:
+  name: docker
+
+platforms:
+  - name: instance
+    image: ubuntu:22.04
+    pre_build_image: true
+    command: /bin/bash -lc "sleep infinity"
+    privileged: false
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      host_key_checking: false
+      retry_files_enabled: false
+      roles_path: "${MOLECULE_PROJECT_DIRECTORY}/.."
+    ssh_connection:
+      pipelining: true
+  inventory:
+    host_vars:
+      instance:
+        ansible_connection: community.docker.docker
+        ansible_user: root
+
+verifier:
+  name: ansible
+
+scenario:
+  name: default
+  test_sequence:
+    - dependency
+    - cleanup
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    # No idempotence: lock acquisition is not idempotent by nature.
+    - verify
+    - cleanup
+    - destroy

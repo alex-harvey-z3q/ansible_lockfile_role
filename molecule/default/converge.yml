@@ -1,0 +1,27 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  become: true
+
+  tasks:
+    - block:
+        - name: Acquire lock
+          ansible.builtin.include_role:
+            name: ansible_lockfile_role
+          vars:
+            lock_path: /tmp/test.lock
+            lock_retries: 5
+            lock_delay: 1
+
+        - name: Critical section
+          ansible.builtin.command: echo "hello world"
+          changed_when: false
+
+      always:
+        - name: Release lock
+          ansible.builtin.include_role:
+            name: ansible_lockfile_role
+            tasks_from: release.yml
+          vars:
+            lock_path: /tmp/test.lock

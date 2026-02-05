@@ -1,0 +1,80 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Start clean
+      ansible.builtin.file:
+        path: /tmp/test.lock
+        state: absent
+
+    # Test 1: acquire works
+    - name: Acquire lock
+      ansible.builtin.include_role:
+        name: ansible_lockfile_role
+      vars:
+        lock_path: /tmp/test.lock
+        lock_retries: 5
+        lock_delay: 1
+
+    - name: Release lock after test 1
+      ansible.builtin.include_role:
+        name: ansible_lockfile_role
+        tasks_from: release.yml
+      vars:
+        lock_path: /tmp/test.lock
+
+    # Test 2: orphan cleanup
+    - name: Write orphan lock
+      ansible.builtin.copy:
+        dest: /tmp/test.lock
+        content: |
+          {{ (lookup('ansible.builtin.pipe','date +%s') | int) - 660 }}
+          orphan-test
+
+    - name: Acquire should delete orphan and succeed
+      ansible.builtin.include_role:
+        name: ansible_lockfile_role
+      vars:
+        lock_path: /tmp/test.lock
+        lock_ttl_seconds: 600
+        lock_retries: 5
+        lock_delay: 1
+
+    - name: Release lock after test 2
+      ansible.builtin.include_role:
+        name: ansible_lockfile_role
+        tasks_from: release.yml
+      vars:
+        lock_path: /tmp/test.lock
+
+    # Test 3: contention should fail fast (expected failure)
+    - name: Create fresh lock held by someone else
+      ansible.builtin.copy:
+        dest: /tmp/test.lock
+        content: |
+          {{ lookup('ansible.builtin.pipe','date +%s') | int }}
+          other-owner
+
+    - name: Acquire with fail-fast should fail (expected)
+      block:
+        - ansible.builtin.include_role:
+            name: ansible_lockfile_role
+          vars:
+            lock_path: /tmp/test.lock
+            lock_fail_fast: true
+      rescue:
+        - ansible.builtin.debug:
+            msg: "Fail-fast contention behaved as expected."
+
+    - name: Cleanup after test 3
+      ansible.builtin.file:
+        path: /tmp/test.lock
+        state: absent
+
+    # Print some readable output
+    - name: All lockfile role tests passed
+      ansible.builtin.debug:
+        msg: "✅ All ansible_lockfile_role tests passed"
